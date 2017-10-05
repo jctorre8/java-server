@@ -1,5 +1,19 @@
+package javaserver.serialize;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
+import java.io.PrintWriter;
+import java.io.File;
+import java.io.ObjectOutputStream;
+import java.io.ObjectInputStream;
+import java.io.FileOutputStream;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import org.json.JSONString;
+import org.json.JSONObject;
+import org.json.JSONTokener;
+import org.json.JSONArray;
 
 /**
  * Copyright 2017 Jean Torres,
@@ -28,70 +42,72 @@ public class Main {
     public static void main(String[] args)
     {
         MovieLibrary myLib = new MovieLibrary();
-        String title = "Movie Minions Banana Song";
-        String rated = "NR";
-        String released = "12 Dec 2015";
-        String runtime = "3 min";
-        String plot = "  Banana is a song sung by The Minions in the teaser trailer of Despicable Me 2. It is\n" +
-                "  a parody of the Beach Boys Barbara Ann. One minion gets annoyed by another, most likely Stuart,\n" +
-                "  who keeps on plaaying his party horn while they are singing. So, at the end, he punches Stuart.";
-        String filename = "MinionsBananaSong.mp4";
-        List<String> genreList = new ArrayList<String>();
-        genreList.add("Terror");
-        genreList.add("Comedy");
-        List<String> actorsList = new ArrayList<String>();
-        actorsList.add("Minion 1");
-        actorsList.add("Minion 2");
-        MovieDescription movie1 = new MovieDescription(title, rated, released, runtime, plot,
-                filename, genreList, actorsList);
-
-        title = "Movie Minions Puppy";
-        rated = "NR";
-        released = "10 Dec 2015";
-        runtime = "4:16 min";
-        plot = "  Dave seeing many owners walk their dogs wants a puppy of his own. He finds a mini-UFO who becomes\n" +
-                "  his pal. This short film released with Despicable Me 2 chronicles how Dave helps the \n" +
-                "  UFO return home.";
-        filename = "MinionsBananaSong.mp4";
-        MovieDescription movie2 = new MovieDescription(title, rated, released, runtime, plot,
-                filename, genreList, actorsList);
-
-        boolean test = myLib.add(movie1);
-        MovieDescription temp;
-        if(test){
-            System.out.print("Added: " + movie1 + "\n");
+        System.out.println("Working Directory = " +
+              System.getProperty("user.dir"));
+        File file = new File ("movies.json");
+        FileInputStream in = null;
+        try{
+            in = new FileInputStream(file);
+            System.out.println("Loaded file");
+        }catch (FileNotFoundException ex){
+            System.out.println(ex.getMessage());
         }
-
-        test = myLib.add(movie2);
-        if(test){
-            System.out.print("Added: " + movie2 + "\n");
+        JSONObject obj = new JSONObject(new JSONTokener(in));
+        String [] names = JSONObject.getNames(obj);
+        try{
+            in.close();
+        }catch (Exception ex){
+            System.out.println(ex.getMessage());
         }
+        
 
-        temp = myLib.get(movie2.getTitle());
-        if(temp.getTitle().equals(movie2.getTitle())){
-            System.out.print("Tested the get method to get movie: " + movie2 + "\n");
-        }
+        String input = "";
+        Scanner scanner = new Scanner( System.in );
+        boolean result;
+        int found = 0;
 
-        System.out.println("After adding two movies, the library contains the titles:");
-        String [] movieTitles = myLib.getTitles();
-        for(int i = 0; i < movieTitles.length; i++){
-            if(i == movieTitles.length-1){
-                System.out.print(movieTitles[i] + "\n");
-                continue;
+        while(!input.equalsIgnoreCase("end")){
+        
+            System.out.println("Please select an option: ");
+            System.out.println(" 1) Search a Title");
+            System.out.println(" 2) Save");
+            System.out.println(" 3) Restore");
+            System.out.println(" 4) End");
+            input = scanner.nextLine();
+
+            if(input.equalsIgnoreCase("Search a Title")){
+                System.out.println("Please input the title to search: ");
+                String title = scanner.nextLine();
+                System.out.println("Searching for Movie: " +title);
+                for(int i = 0; i < names.length; i++){
+                    if(title.equalsIgnoreCase(names[i])){
+                        System.out.println("Movie "+names[i]+" was found in database.");
+                        System.out.println("Adding movie "+names[i]+" to the library.");
+                        MovieDescription newMovie = new MovieDescription(obj.getJSONObject(names[i]));
+                        myLib.add(newMovie);
+                        found = 1;
+                        break;
+                    }                    
+                }
+                if(found == 0){
+                        System.out.println("Movie " +title + " was not found!!!\n");
+                }
+                found =0;
             }
-            System.out.print(movieTitles[i] + ", ");
-        }
-
-
-        myLib.remove(movie1.getTitle());
-        String [] movieTitlesAfter = myLib.getTitles();
-        System.out.println("\nMovie titles after removing " + movie1.getTitle() + " the titles are:");
-        for(int i = 0; i < movieTitlesAfter.length; i++){
-            if(i == movieTitlesAfter.length-1){
-                System.out.print(movieTitlesAfter[i] + "\n");
-                continue;
+            else if (input.equalsIgnoreCase("Save")) {
+                result = myLib.saveToFile();               
             }
-            System.out.print(movieTitlesAfter[i]);
+            else if (input.equalsIgnoreCase("Restore")) {
+                result = myLib.restoreFromFile();                
+            }
+            else if (input.equalsIgnoreCase("end")) {
+                continue;                
+            }
+            else{
+                System.out.println("Please type one of the options!");
+            }
+
         }
+        return;
     }
 }
