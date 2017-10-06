@@ -1,4 +1,4 @@
-package javaserver.serialize;
+package javaserver.server;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -35,6 +35,9 @@ import org.json.JSONArray;
  */
 
 public class MovieDescription extends Object implements Serializable {
+    
+    private static final boolean debugOn = false;
+
     private String title;
     private String rated;
     private String released;
@@ -43,6 +46,7 @@ public class MovieDescription extends Object implements Serializable {
     private String filename;
     private List<String> genreList;
     private List<String> actorsList;
+
 
     public MovieDescription(String title, String rated, String released, String runtime, String plot,
                             String filename, List<String> genreList, List<String> actorsList){
@@ -300,6 +304,40 @@ public class MovieDescription extends Object implements Serializable {
     }
 
     /**
+    * Export the movie information into a JSONObject.
+    * 
+    * @return A JSONObject with all the Movie information.
+    */
+    public JSONObject toJson(){
+        JSONObject obj = new JSONObject();
+        obj.put("Title",this.title);
+        obj.put("Rated",this.rated);
+        obj.put("Released",this.released);
+        obj.put("Runtime",this.runtime);
+        obj.put("Plot",this.plot);
+        obj.put("Filename",this.filename);
+        obj.put("Genre",this.genreList);
+        obj.put("Actors",this.actorsList);
+        return obj;
+    }
+
+    /**
+    * Export the movie information into a JSONObject.
+    * 
+    * @return A JSONObject with all the Movie information.
+    */
+    public String toJSONString(){
+        String ret = "";
+      try{
+         ret = this.toJSONObject().toString();
+      }catch (Exception ex){
+         System.out.println(this.getClass().getSimpleName()+
+                            ": error converting to json string");
+      }
+      return ret;
+    }
+
+    /**
     * Returns a String representation of the Movie Description.
     * 
     * @return A string with all the information.
@@ -330,5 +368,10 @@ public class MovieDescription extends Object implements Serializable {
         }
         toReturn += "\n";
         return toReturn;
+    }
+
+    private void debug(String message) {
+      if (debugOn)
+         System.out.println("debug: "+message);
     }
 }
