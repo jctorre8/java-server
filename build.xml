@@ -1,34 +1,74 @@
-<project name="Ser321 Java Serialization to json"
-         default="targets" basedir="."
-         xmlns="antlib:org.apache.tools.ant">
+<?xml version="1.0"?>
+<project name="JsonRPC in CPP using libjson-rpc-cpp" default="targets">
    <taskdef resource="cpptasks.tasks"/>
    <taskdef resource="net/sf/antcontrib/antcontrib.properties"/>
-
-   <property name="src" value="./src" />
-   <property name="build" value="./classes" />
-   <property name="lib" value="./lib" />
-   <property name="obj.dir" value="obj"/>
+   <property name="src.dir" value="src"/>
    <property name="dist.dir" value="bin"/>
+   <property name="classes.dir" value="classes"/>
+   <property name="obj.dir" value="obj"/>
+   <property name="host.name" value="127.0.0.1"/>
+   <property name="port.num" value="8080"/>
+   <property name="json.file.name" value="StudentLibraryMethods.json"/>
    <property environment="env"/>
+   <!--Set the ostype property: <property name="ostype" value="${env.OSTYPE}"/>-->
+    <condition property="ostype" value="${env.OSTYPE}">
+        <isset property="env.OSTYPE" />
+    </condition>
+    <condition property="ostype" value="env.OSTYPE_inaccessable">
+        <not>
+            <isset property="env.OSTYPE" />
+        </not>
+    </condition>
 
-   <path id="compile.classpath">
-      <pathelement location="${build}"/>
-      <pathelement path="${lib}/json.jar"/>
-   </path>
+    <!--Set the dyldpath property <var name="dyldpath" value="${env.DYLD_FALLBACK_LIBRARY_PATH}"/>-->
+    <condition property="dyldpath" value="${env.DYLD_FALLBACK_PATH}">
+        <isset property="env.DYLD_FALLBACK_PATH" />
+    </condition>
+    <condition property="dyldpath" value="env.DYLD_FALLBACK_PATH_inaccessible">
+        <not>
+            <isset property="env.DYLD_FALLBACK_PATH" />
+        </not>
+    </condition>
 
    <target name="targets">
-     <echo message="targets are clean, prepare, build.java, execute.java"/>
-     <echo message="execute java with: java -cp classes:lib/json.jar javaserver.serialize.Main"/>
+      <echo message="Targets are clean, prepare, build.all, build.java.server, generate.java.proxy, build.java.client, targets"/>
+      <echo message="base directory is: ${basedir}"/>
+      <echo message="ostype is ${ostype} and dyldpath is ${dyldpath}"/>
+      <echo message="on MacOSX define DYLD_FALLBACK_LIBRARY_PATH. Its: ${dyldpath} For macport and manual builds use /opt/local/lib:/usr/local/lib"/>
+      <echo message="invoke java http client with: java -cp classes:lib/jsonrpcclient.jar javaserver.client.MovieLibraryClient ${host.name} ${port.num}"/>
+      <echo message="invoke java tcp server with: java -cp classes:lib/jsonrpcserver.jar avaserver.server.MovieLibraryTcpServer ${port.num}"/>
+      <echo message="invoke java http server with: java -cp classes:lib/jsonrpcserver.jar avaserver.server.MovieLibraryHttpServer ${port.num}"/>
+      
+   </target>
+
+   <path id="compile.classpath">
+      <pathelement location="${classes.dir}"/>
+      <fileset dir="${basedir}/lib">
+         <include name="json.jar"/>
+         <include name="jsonrpcserver.jar"/>
+         <include name="jsonrpcclient.jar"/>
+         <include name="jsonrpcproxy.jar"/>
+      </fileset>
+   </path>
+
+   <target name="clean">
+      <delete dir="${classes.dir}" failonerror="false"/>
+      <delete dir="${dist.dir}" failonerror="false"/>
+      <delete dir="${obj.dir}" failonerror="false"/>
+      <delete dir="log" failonerror="false"/>
+      <delete file="log.txt" failonerror="false"/>
+      <delete file="logerrors.txt" failonerror="false"/>
+      <delete file="logpid.txt" failonerror="false"/>
+      <delete file="${src.dir}/client/MovieDescriptionHttpProxy.java"
+              failonerror="false"/>
    </target>
 
    <target name="prepare">
-      <!-- Create the time stamp -->
-      <tstamp/>
-      <!-- Create the build directory structure used by compile -->
-      <echo message="home defined as: ${env.HOME}" />
-      <mkdir dir="${build}" />
+      <mkdir dir="${classes.dir}"/>
       <mkdir dir="${dist.dir}" />
-      <mkdir dir="${obj.dir}" />
+      <mkdir dir="log" />
+      <mkdir dir="${obj.dir}/client" />
+      <mkdir dir="${obj.dir}/server" />
       <if>
          <isset property="env.USERNAME"/>
          <then>
@@ -77,17 +117,23 @@
          <isset property="build.host.ismac"/>
          <then>
             <echo message="detected a mac host"/>
+            <property name="cxxflag" value="-std=c++14"/>
             <property name="includepath" value="/opt/local/include:/usr/local/include"/>
             <property name="client.lib.path" value="/opt/local/lib"/>
-            <property name="client.lib.list" value="c++,jsoncpp,stdc++"/>
+            <property name="client.lib.list" value="c++,jsoncpp,jsonrpccpp-client,jsonrpccpp-common,microhttpd,stdc++"/>
+            <property name="server.lib.path" value="/opt/local/lib"/>
+            <property name="server.lib.list" value="c++,jsoncpp,jsonrpccpp-server,jsonrpccpp-common,microhttpd"/>
          </then>
       <elseif>
          <isset property="build.host.islinux"/>
          <then>
             <echo message="detected a linux host"/>
-            <property name="includepath" value="/usr/include/jsoncpp"/>
+            <property name="cxxflag" value="-std=c++14"/>
+            <property name="includepath" value="/usr/local/include:/usr/include/jsoncpp"/>
             <property name="client.lib.path" value="/usr/local/lib"/>
-            <property name="client.lib.list" value="jsoncpp,stdc++"/>
+            <property name="client.lib.list" value="jsoncpp,jsonrpccpp-client,jsonrpccpp-common,microhttpd,stdc++"/>
+            <property name="server.lib.path" value="/usr/local/lib"/>
+            <property name="server.lib.list" value="jsoncpp,jsonrpccpp-server,jsonrpccpp-common,microhttpd,stdc++"/>
          </then>
       </elseif>
       <else>
@@ -96,29 +142,83 @@
    </if>
    </target>
 
-   <target name="build.java" depends="prepare"
-           description="Compile Java sources">
-      <javac srcdir="${src}"
-             includeantruntime="false"
-             destdir="${build}">
+   <target name="build.all"
+           depends="clean,prepare,build.java.server,build.java.client"
+           description="Clean then build cpp server, cpp client and java client"/>
+
+   <target name="build.java.server" depends="prepare"
+          description="Compile Java server sources">
+     <!-- Compile Java server classes as necessary -->
+     <echo message="http server: java -cp classes:lib/jsonrpcserver.jar javaserver.server.MovieLibraryHttpServer aPortNumber"/>
+     <javac srcdir="${src.dir}/server"
+            destdir="${classes.dir}"
+            includeantruntime="false">
+        <classpath refid="compile.classpath"/>
+    </javac>
+<!--    <jar destfile="${lib.dir}/jsonrpcserver.jar">
+            <fileset dir="${classes.dir}" includes="edu/asu/ser/jsonrpc/server/*.class"/>
+            <fileset dir="${classes.dir}" includes="edu/asu/ser/jsonrpc/common/*.class"/>
+            <zipgroupfileset dir="${lib.dir}">
+                 <include name="json.jar"/>
+            </zipgroupfileset>
+    </jar>
+    <jar destfile="${lib.dir}/jsonrpcclient.jar">
+            <fileset dir="${classes.dir}" includes="edu/asu/ser/jsonrpc/client/*.class"/>
+            <fileset dir="${classes.dir}" includes="edu/asu/ser/jsonrpc/proxy/*.class"/>
+            <fileset dir="${classes.dir}" includes="edu/asu/ser/jsonrpc/common/*.class"/>
+            <zipgroupfileset dir="${lib.dir}">
+                 <include name="json.jar"/>
+            </zipgroupfileset>
+    </jar> -->
+   </target>
+
+   <target name="generate.java.proxy" depends="build.java.server"
+           description="execute the jsonRPC proxy generator to generate client proxy.">
+      <echo message="http proxy: java -cp classes:lib/jsonrpcproxy.jar edu.asu.ser.jsonrpc.proxy.ProxyGenerator -l java -t http -o CalculatorHttpProxy javaserver.server.MovieLibrary javaserver.server.MovieDescription"/>
+      <echo message="tcp proxy: java -cp classes:lib/jsonrpcproxy.jar edu.asu.ser.jsonrpc.proxy.ProxyGenerator -l java -t tcp -o StudentTcpProxy javaserver.server.MovieLibrary javaserver.server.MovieDescription"/>
+      <!--
+      <java classname="edu.asu.ser.jsonrpc.proxy.ProxyGenerator"
+            fork="yes">
          <classpath refid="compile.classpath"/>
-      </javac>
+         <arg value="-l"/>
+         <arg value="java"/>
+         <arg value="-t"/>
+         <arg value="tcp"/>
+         <arg value="-o"/>
+         <arg value="StudentTcpProxy"/>
+         <arg value="sample.student.server.Student"/>
+         <arg value="sample.student.server.StudentCollection"/>
+      </java>
+      -->   
+      <java classname="edu.asu.ser.jsonrpc.proxy.ProxyGenerator"
+            fork="yes">
+         <classpath refid="compile.classpath"/>
+         <arg value="-l"/>
+         <arg value="java"/>
+         <arg value="-t"/>
+         <arg value="http"/>
+         <arg value="-o"/>
+         <arg value="MovieDescriptionHttpProxy"/>
+         <arg value="javaserver.server.MovieLibrary"/>
+         <arg value="javaserver.server.MovieDescription"/>
+      </java>
+      <!--
+      <move file="${basedir}/StudentTcpProxy.java"
+            tofile="${src.dir}/java/client/StudentTcpProxy.java"/>
+      -->
+      <move file="${basedir}/MovieDescriptionHttpProxy.java"
+            tofile="${src.dir}/client/MovieDescriptionHttpProxy.java"/>
    </target>
-
-   <target name="execute.java" depends="build.java"
-           description="Start program">
-         <echo message="user.dir is: ${user.dir}"/>
-         <echo message="command line execute: java -cp classes:lib/json.jar javaserver.serialize.Main" />
-         <java classname="javaserver.serialize.Main" fork="yes">
-           <classpath refid="compile.classpath"/>
-         </java>
-   </target>
-
-   <target name="clean">
-     <delete dir="${build}" />
-     <delete file="movies.json"/>
-     <delete dir="${obj.dir}" failonerror="false"/>
-     <delete dir="${dist.dir}" failonerror="false"/>
+   
+   <target name="build.java.client" depends="generate.java.proxy"
+          description="Compile Java client sources">
+     <!-- Compile Java classes as necessary -->
+     <echo message="execute client: java -cp classes:lib/jsonrpcclient.jar javaserver.client.MovieLibraryClient localhost 8080"/>
+     <javac srcdir="${src.dir}/client"
+            destdir="${classes.dir}"
+            includeantruntime="false">
+        <classpath refid="compile.classpath"/>
+     </javac>
    </target>
 
 </project>
